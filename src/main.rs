@@ -24,7 +24,7 @@ fn run() -> Result<()> {
     let in_path = args.next().context("path not provided")?;
     let in_path = Path::new(&in_path);
 
-    let mut in_file = File::open(&in_path).context("failed to open input file")?;
+    let mut in_file = File::open(in_path).context("failed to open input file")?;
     let len = in_file.metadata()?.len();
     ensure!(len % 8 == 0, "partial block found");
 
