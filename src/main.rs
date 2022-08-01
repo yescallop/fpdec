@@ -59,7 +59,7 @@ fn run() -> Result<()> {
 
         if header == b"\xFF\xD8\xFF\xE0" || header == b"\xFF\xD8\xFF\xE1" {
             des.decrypt_block_b2b((&last).into(), (&mut buf).into());
-            let pad_len = pkcs5_verify(&buf);
+            let pad_len = pkcs5_pad_len(&buf);
             if pad_len > 0 {
                 println!("Found key: {}", str::from_utf8(&key_buf).unwrap());
                 break (des, pad_len);
@@ -70,8 +70,8 @@ fn run() -> Result<()> {
         loop {
             let x = key_buf[i];
             if x != b'F' {
-                let t = x & 0b1000;
-                key_buf[i] = x + t + ((t >> 2) ^ 0b10);
+                let t = if x & 0b1000 != 0 { 0b1000 } else { 0b10 };
+                key_buf[i] = x + t;
                 break;
             }
             if i == 0 {
@@ -107,7 +107,7 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn pkcs5_verify(block: &[u8; 8]) -> u64 {
+fn pkcs5_pad_len(block: &[u8; 8]) -> u64 {
     let x = u64::from_be_bytes(*block);
     let pad_len = x & 0xFF;
     if pad_len == 0 || pad_len > 8 {
