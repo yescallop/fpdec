@@ -1,0 +1,8 @@
+[package]
+name = "fpdec"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+des = "0.8.1"
