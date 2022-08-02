@@ -1,6 +1,6 @@
 use std::{
     env,
-    fs::{self, File},
+    fs::File,
     io::{prelude::*, BufReader, BufWriter, SeekFrom},
     path::Path,
     str,
@@ -26,23 +26,21 @@ fn run() -> Result<()> {
 
     let mut in_file = File::open(in_path).context("failed to open input file")?;
     let len = in_file.metadata()?.len();
-    ensure!(len % 8 == 0, "partial block found");
 
     let name = in_path.file_name().unwrap().to_str().unwrap();
     println!("Input: {}", name);
 
-    let out_path = in_path.with_extension("jpg");
-
     let mut buf = [0u8; 8];
     in_file.read_exact(&mut buf)?;
 
-    if &buf == b"ENCRYPT:" {
-        println!("Encrypted. Searching for key...");
-    } else {
-        println!("Unencrypted. Copying...");
-        fs::copy(in_path, out_path)?;
+    if &buf != b"ENCRYPT:" {
+        println!("Unencrypted.");
         return Ok(());
     }
+
+    println!("Encrypted. Searching for key...");
+
+    ensure!(len % 8 == 0, "partial block found");
 
     in_file.read_exact(&mut buf)?;
     let first = buf;
@@ -51,9 +49,9 @@ fn run() -> Result<()> {
     in_file.read_exact(&mut buf)?;
     let last = buf;
 
-    let mut key_buf = [b'0'; 8];
+    let mut key = [b'0'; 8];
     let (des, pad_len) = loop {
-        let des = Des::new((&key_buf).into());
+        let des = Des::new((&key).into());
         des.decrypt_block_b2b((&first).into(), (&mut buf).into());
         let header = &buf[..4];
 
@@ -61,23 +59,23 @@ fn run() -> Result<()> {
             des.decrypt_block_b2b((&last).into(), (&mut buf).into());
             let pad_len = pkcs5_pad_len(&buf);
             if pad_len > 0 {
-                println!("Found key: {}", str::from_utf8(&key_buf).unwrap());
+                println!("Found key: {}", str::from_utf8(&key).unwrap());
                 break (des, pad_len);
             }
         }
 
         let mut i = 7;
         loop {
-            let x = key_buf[i];
+            let x = key[i];
             if x != b'F' {
                 let t = if x & 0b1000 != 0 { 0b1000 } else { 0b10 };
-                key_buf[i] = x + t;
+                key[i] = x + t;
                 break;
             }
             if i == 0 {
                 bail!("key not found");
             }
-            key_buf[i] = b'0';
+            key[i] = b'0';
             i -= 1;
         }
     };
@@ -85,6 +83,7 @@ fn run() -> Result<()> {
     in_file.seek(SeekFrom::Start(8))?;
     let mut input = BufReader::new(in_file);
 
+    let out_path = in_path.with_extension("jpg");
     let out_file = File::create(&out_path).context("failed to create output file")?;
     let mut output = BufWriter::new(out_file);
 
